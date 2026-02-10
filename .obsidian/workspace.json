@@ -1,0 +1,224 @@
+{
+  "main": {
+    "id": "8848a8e27c30cae3",
+    "type": "split",
+    "children": [
+      {
+        "id": "83a21c20d7644752",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7482bb88b84c6c64",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "02-Work/Projects/Claude Code with Bedrock.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Claude Code with Bedrock"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "f4e3a56f3ad362bc",
+    "type": "split",
+    "children": [
+      {
+        "id": "f4fa85e9f75f0cf0",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "40d01d4f7e99f363",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": true
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "4fa5cfa8972de959",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "1795b81a614d02fc",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "1bf5a997123c5363",
+    "type": "split",
+    "children": [
+      {
+        "id": "069215483afa730a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "139124cdf1a81c78",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "02-Work/Projects/Claude Code with Bedrock.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Claude Code with Bedrock"
+            }
+          },
+          {
+            "id": "07bebd44bf305c1f",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "2026-02-09.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 2026-02-09"
+            }
+          },
+          {
+            "id": "be6db7dd4b47d057",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "aa6aae9b565d986e",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "a88bd2dbe9594bd7",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "2026-02-09.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 2026-02-09"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "templater-obsidian:Templater": false,
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "7482bb88b84c6c64",
+  "lastOpenFiles": [
+    "99-Meta/Vault Guide.md",
+    "Welcome.md",
+    "Untitled 1.md",
+    "Untitled.md",
+    "README.md",
+    "START HERE.md",
+    "02-Work/Projects/GitLab Enterprise Migration SOP.md",
+    "01-Daily/2026/February/2026-02-10.md",
+    "00-Templates/Quick Note.md",
+    "99-Meta/Tags Index.md",
+    "02-Work/Projects/Claude Code with Bedrock.md",
+    "00-Templates/Project Note.md",
+    "00-Templates/Daily Note.md",
+    "00-Templates/Learning Note.md",
+    "01-Daily/2026/February/2026-02-09.md",
+    "Meeting Notes 2.md",
+    "00-Templates/SOP_Template.md",
+    "SOP_Template.md",
+    "SOP_Template.md.tmp.2688.1770733455411",
+    "01-Daily/2026/February",
+    "99-Meta/Templater Setup Guide.md",
+    "01-Daily/2026/Untitled.md",
+    "00-Templates/Meeting Note.md",
+    "00-Templates/Weekly Note.md",
+    "00-Templates/Monthly Status Report.md",
+    "START HERE.md.tmp.2688.1770668401648",
+    "README.md.tmp.2688.1770668349235",
+    "99-Meta/Tags Index.md.tmp.2688.1770668312425",
+    "2026-02-09.md",
+    "00-Templates/Learning Note.md.tmp.2688.1770668196632",
+    "00-Templates/Meeting Note.md.tmp.2688.1770668183010",
+    "00-Templates/Project Note.md.tmp.2688.1770668174959",
+    "00-Templates/Monthly Status Report.md.tmp.2688.1770668163249",
+    "00-Templates/Weekly Note.md.tmp.2688.1770668151882",
+    "create a link.md"
+  ]
+}
