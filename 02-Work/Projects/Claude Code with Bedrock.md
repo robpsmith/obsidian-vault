@@ -58,3 +58,22 @@ Prerequisites                                 �
   - /login and /logout commands are disabled when using Bedrock  
   - If you get "on-demand throughput isn't supported" errors, use an inference profile ID instead of a model ARN  
   - Prompt caching may not be available in all regions — set DISABLE_PROMPT_CACHING=1 if needed
+
+
+
+
+In AWS, create a bedrock key:  
+IAM > User > Security Credentials > Create bedrock api
+
+In Control panel:  
+System > edit environment variables > New  
+Variable name: PATH  
+Variable value > C:\Users\YourUser\.local\.bin
+
+In cmd:  
+Install git for bash at [https://git-scm.com/install/windows](https://git-scm.com/install/windows "https://git-scm.com/install/windows")  
+irm [https://claude.ai/install.ps1](https://claude.ai/install.ps1 "https://claude.ai/install.ps1") | iex  
+# You may have to restart cmd or open a new tab at this point  
+$env:CLAUDE_CODE_USE_BEDROCK="1"  
+$env:AWS_REGION="us-east-1"  
+$env:AWS_BEARER_TOKEN_BEDROCK="Bedrock API key"
