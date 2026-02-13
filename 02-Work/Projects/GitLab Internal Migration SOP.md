@@ -1,16 +1,15 @@
-## Ubuntu 20.04 (Omnibus) → Ubuntu 22.04 (Docker Compose)
+## RHEL 8 (Omnibus) → Ubuntu 22.04 (Docker Compose)
 
 **Version:** 1.0
 **GitLab Version:** 18.8.2 EE
 **Database:** RDS PostgreSQL 16.10
-**Backup Size:** ~105GB
-**Users:** 200+
+**Backup Size:** `_____________________`
 
 ---
 
 ## Table of Contents
 1. [Pre-Migration Preparation](#pre-migration-preparation)
-2. [Phase 1: New Server Setup](#phase-1-new-server-setup)
+2. [Phase 1: New Server Setup (AMI Deploy)](#phase-1-new-server-setup-ami-deploy)
 3. [Phase 2: Testing Phase](#phase-2-testing-phase)
 4. [Phase 3: Final Migration](#phase-3-final-migration)
 5. [Phase 4: Cutover & Verification](#phase-4-cutover--verification)
@@ -27,25 +26,25 @@
 git clone https://gitlab.761link.net/enterprise/gitlab-automation.git
 ```
 
-Collect and document the following from the current Ubuntu 20.04 server:
-- [ ] Current GitLab external URL: `gitlab.761link.net`
-- [ ] Current server IP: `10.51.30.165`
+Collect and document the following from the current RHEL 8 server:
+- [ ] Current GitLab external URL: `gitlab-internal.761link.net`
+- [ ] Current server IP: `10.51.24.10`
 - [ ] RDS PostgreSQL endpoint: `In rb file` (store securely)
 - [ ] RDS database name: `In rb file`
 - [ ] RDS username: In rb file
 - [ ] RDS password: `In rb file`
 **S3 Configuration Details:**
-- [ ] AWS Account: `sunet-enterprise-govcloud`
-- [ ] Backup bucket name: `ent-gitlab-uploads`
-- [ ] Packages bucket name: `ent-gitlab-packages`
-- [ ] LFS bucket name: `ent-gitlab-lfs`
-- [ ] Registry bucket name: `ent-gitlab-registry`
+- [ ] AWS Account: `_____________________`
+- [ ] Backup bucket name: `_____________________`
+- [ ] Packages bucket name: `_____________________`
+- [ ] LFS bucket name: `_____________________`
+- [ ] Registry bucket name: `_____________________`
 - [ ] AWS Access Key ID: `In rb file` (store securely)
 - [ ] AWS Secret Access Key: `in rb file` (store securely)
 
 ### 1.2 Backup Current Configuration Files
 
-On Ubuntu 20.04 server:
+On RHEL 8 server:
 
 ```bash
 # Create backup directory
@@ -62,24 +61,24 @@ sudo cp -r /etc/ssl/certs/your-gitlab-cert* ./ssl-certs/
 # Note: Copy all relevant certificate files and private keys
 
 # Copy these files to a secure location OFF the server from 192.168.120.2
-sudo scp robert.smith@10.51.30.165:/home/robert.smith/gitlab.rb.backup .
-sudo scp robert.smith@10.51.30.165:/home/robert.smith/gitlab-secrets.json.backup .
-sudo scp -r robert.smith@10.51.30.165:/home/robert.smith/ssl-certs/ .
+sudo scp robert.smith@10.51.24.10:/home/robert.smith/gitlab.rb.backup .
+sudo scp robert.smith@10.51.24.10:/home/robert.smith/gitlab-secrets.json.backup .
+sudo scp -r robert.smith@10.51.24.10:/home/robert.smith/ssl-certs/ .
 ```
 
 ### 1.3 Verify Current Backup
 
 ```bash
 # Check latest backup in S3
-aws s3 ls s3://ent-gitlab-uploads/ --recursive | sort | tail -n 10
+aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ --recursive | sort | tail -n 10
 
-# Note the latest backup timestamp: ex 1770256882_2026_02_04_18.8.2-ee_gitlab_backup.tar
+# Note the latest backup timestamp: _____________________
 
 # Create a pre-migration backup (incremental — skips object-store blobs since those stay in S3)
 sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=manual-pre-migration
 
 # Verify upload to S3
-aws s3 ls s3://ent-gitlab-uploads/ --recursive | sort | tail -n 10
+aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ --recursive | sort | tail -n 10
 ```
 
 ### 1.4 Document Current Settings
@@ -105,44 +104,42 @@ sudo gitlab-rails runner "puts 'Projects: ' + Project.count.to_s"
 
 ---
 
-## Phase 1: New Server Setup
+## Phase 1: New Server Setup (AMI Deploy)
 
-### 2.1 Prepare Ubuntu 22.04 Server
-#### Already configured on 10.51.30.170
+> **Note:** The new Ubuntu 22.04 server is deployed from the existing AMI created from 10.51.30.170 (the enterprise Docker host). This AMI already has Docker, Docker Compose, and all GitLab scripts pre-installed. No manual server setup is required.
+
+### 2.1 Launch AMI at Temporary IP for Testing
+
+Launch the AMI from 10.51.30.170 at a temporary IP for testing before cutover. Record the subnet and security group info from the old RHEL 8 instance first.
 
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
+# Get the AMI ID from the enterprise 10.51.30.170 image
+# AMI ID (from 10.51.30.170): _____________________
 
-# Install required packages
-sudo apt install -y curl ca-certificates gnupg lsb-release awscli
+# Launch at a temporary IP in the same subnet as 10.51.24.10
+aws ec2 run-instances \
+  --image-id ami-XXXXXXXXXXXXXXXXX \
+  --instance-type <INSTANCE_TYPE> \
+  --subnet-id subnet-XXXXXXXXX \
+  --security-group-ids sg-XXXXXXXXX \
+  --key-name <KEY_PAIR_NAME> \
+  --iam-instance-profile Name=<PROFILE_NAME> \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gitlab-internal-test}]'
 
-# Install Docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+# Note the temporary instance IP: _____________________
+# Note the instance ID: _____________________
 
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# Verify Docker installation
-sudo docker --version
-sudo docker compose version
-
-# Add user to docker group (optional)
-sudo usermod -aG docker $USER
-# Log out and back in for group changes to take effect
+aws ec2 wait instance-running --instance-ids i-XXXXXXXXXXXXXXXXX
+echo "Test instance running"
 ```
 
 ### 2.2 Copy SSL Certificates
-> **Note:** Directory creation (`/etc/gitlab`, `/etc/gitlab/data/backups`) is handled by `configure-gitlab-server.sh` in section 2.7.
 
-
-Transfer your SSL certificates from the old server:
+Transfer your SSL certificates from the RHEL 8 server to the new instance:
 
 ```bash
 # From old server, copy certificates
-scp -r robert.smith@10.51.30.165:/home/robert.smith/ssl-certs/* /tmp/
+scp -r robert.smith@10.51.24.10:/home/robert.smith/ssl-certs/* /tmp/
 
 # On new server, move to GitLab config directory (nginx reads from /etc/gitlab inside the container)
 sudo mkdir -p /etc/gitlab/config/ssl
@@ -159,11 +156,10 @@ sudo chmod 644 /etc/gitlab/config/ssl/*.crt
 ### 2.3 Copy gitlab-secrets.json
 
 **Critical:** The secrets file encrypts stored credentials (CI variables, 2FA keys, etc.). Without the original secrets file, encrypted data in the database is unrecoverable.
-Run this on 10.51.30.170
 
 ```bash
-# Copy from old server
-sudo scp robert.smith@10.51.30.165:/home/robert.smith/gitlab-secrets.json.backup /tmp/gitlab-secrets.json
+# Copy from RHEL 8 server
+sudo scp robert.smith@10.51.24.10:/home/robert.smith/gitlab-secrets.json.backup /tmp/gitlab-secrets.json
 
 # Move to GitLab config directory
 sudo mv /tmp/gitlab-secrets.json /etc/gitlab/config/
@@ -172,17 +168,16 @@ sudo chmod 600 /etc/gitlab/config/gitlab-secrets.json
 
 ### 2.4 Configure gitlab.rb
 
-Copy the `gitlab.rb` from the old server and adapt it for Docker. The `gitlab.rb` lives at `/etc/gitlab/config/gitlab.rb` on the host (mounted to `/etc/gitlab/gitlab.rb` inside the container).
-Run this on 10.51.30.170
+Copy the `gitlab.rb` from the RHEL 8 server and adapt it for Docker. The `gitlab.rb` lives at `/etc/gitlab/config/gitlab.rb` on the host (mounted to `/etc/gitlab/gitlab.rb` inside the container).
 
 ```bash
-# Copy from old server
-scp robert.smith@10.51.30.165:/home/robert.smith/gitlab.rb.backup /etc/gitlab/config/gitlab.rb
+# Copy from RHEL 8 server
+scp robert.smith@10.51.24.10:/home/robert.smith/gitlab.rb.backup /etc/gitlab/config/gitlab.rb
 ```
 
 **Verify the following sections are present and correct in `/etc/gitlab/config/gitlab.rb`:**
 
-- [ ] `external_url` is set to `https://gitlab.761link.net`
+- [ ] `external_url` is set to `https://gitlab-internal.761link.net`
 - [ ] PostgreSQL disabled (`postgresql['enable'] = false`) and RDS connection configured
 - [ ] S3 object storage configured (uploads, artifacts, LFS, packages, registry)
 - [ ] S3 backup upload configured (`backup_upload_connection`, `backup_upload_remote_directory`)
@@ -193,11 +188,11 @@ scp robert.smith@10.51.30.165:/home/robert.smith/gitlab.rb.backup /etc/gitlab/co
 
 > **Note:** All configuration is managed through `gitlab.rb`, not through the `GITLAB_OMNIBUS_CONFIG` environment variable in docker-compose. The compose file is kept minimal. This makes configuration changes easier to manage, diff, and back up.
 
-### 2.5 Create Docker Compose Files
+### 2.5 Docker Compose Files
+
+The AMI from 10.51.30.170 already includes both compose files at `/etc/gitlab/`. Update the hostname in each:
 
 #### Production Compose: `/etc/gitlab/docker-compose.yml`
-
-Used for normal operation. Binds to the server's IP and restarts automatically. No CPU/memory limits — GitLab is the only container on this host and should use all available resources.
 
 ```yaml
 # Production compose — all GitLab settings live in gitlab.rb (not GITLAB_OMNIBUS_CONFIG).
@@ -209,7 +204,7 @@ services:
     image: gitlab/gitlab-ee:18.8.2-ee.0
     container_name: gitlab
     restart: always
-    hostname: 'gitlab.761link.net'
+    hostname: 'gitlab-internal.761link.net'
     ports:
       - '${IP_ADDRESS}:443:443'
     volumes:
@@ -233,19 +228,7 @@ services:
       start_period: 5m
 ```
 
-**Key settings explained:**
-- `shm_size: '256m'` — GitLab's internal services use `/dev/shm`; the default 64MB can cause crashes under load.
-- `stop_grace_period: 2m` — Gives Puma, Sidekiq, and Gitaly time to drain connections on shutdown (default 10s is too aggressive).
-- `logging` with rotation — Prevents Docker's json-file driver from filling the EBS volume. Capped at 5 x 50MB = 250MB.
-- No CPU/memory limits — This is a dedicated host; GitLab uses whatever the EC2 instance provides.
-
-**Environment variables** (set by `start-gitlab.sh` or export manually):
-- `GITLAB_HOME` — Host path for GitLab data (default: `/etc/gitlab`)
-- `IP_ADDRESS` — Server IP to bind port 443 to (auto-detected by `start-gitlab.sh`)
-
 #### Startup/Restore Compose: `/etc/gitlab/docker-compose-startup.yml`
-
-Used for first startup and backup restores. Does **not** restart on failure. All configuration lives in `gitlab.rb` — no `GITLAB_OMNIBUS_CONFIG` overrides.
 
 ```yaml
 # Startup / restore compose — use for first boot or backup restores.
@@ -260,7 +243,7 @@ services:
     image: gitlab/gitlab-ee:18.8.2-ee.0
     container_name: gitlab
     restart: "no"
-    hostname: 'gitlab.761link.net'
+    hostname: 'gitlab-internal.761link.net'
     ports:
       - '443:443'
     volumes:
@@ -276,27 +259,17 @@ services:
         max-file: "5"
 ```
 
-> **Why two compose files?** The startup compose uses `restart: "no"` so the container won't restart in a loop if reconfigure fails. Once restore is verified, switch to the production compose.
->
-> **Blocking CI runners during restore:** Before starting a restore, add the nginx runner-block line shown in the compose file comments to `gitlab.rb`. Remove it after switching to the production compose and reconfigure.
+### 2.6 Verify Scripts Are Present
 
-### 2.6 Deploy Scripts
-
-Copy the backup, restore, and configure scripts to the new server:
+The AMI already includes the scripts. Verify they exist:
 
 ```bash
-# Copy scripts to the new server
-sudo scp scripts/create-gitlab-backup.sh robert.smith@10.51.30.170:/tmp/
-sudo scp scripts/restore-latest-gitlab-backup.sh robert.smith@10.51.30.170:/tmp/
-sudo scp scripts/configure-gitlab-server.sh robert.smith@10.51.30.170:/tmp/
-sudo  scp start-gitlab.sh robert.smith@10.51.30.170:/tmp/
-
-# On the new server — place scripts
-sudo mv /tmp/create-gitlab-backup.sh /etc/gitlab/
-sudo mv /tmp/restore-latest-gitlab-backup.sh /etc/gitlab/
-sudo mv /tmp/configure-gitlab-server.sh /etc/gitlab/
-sudo mv /tmp/start-gitlab.sh /etc/gitlab/
-sudo chmod 750 /etc/gitlab/*.sh
+ls -l /etc/gitlab/*.sh
+# Should see:
+#   create-gitlab-backup.sh
+#   restore-latest-gitlab-backup.sh
+#   configure-gitlab-server.sh
+#   start-gitlab.sh
 ```
 
 ### 2.7 Run Server Configuration Script
@@ -354,17 +327,14 @@ sudo docker exec -it gitlab gitlab-rake gitlab:db:configure
 
 ```bash
 # Download latest backup from S3 to the backups directory
-aws s3 cp s3://ent-gitlab-uploads/LATEST_BACKUP_FILE.tar /etc/gitlab/data/backups/
+aws s3 cp s3://INTERNAL_BACKUP_BUCKET/LATEST_BACKUP_FILE.tar /etc/gitlab/data/backups/
 
 # Verify the file is in place
 ls -lh /etc/gitlab/data/backups/
 
-# Run a dry-run first to validate everything without modifying data
+# Restore — if using RDS with an existing database, set overwrite mode:
 cd /etc/gitlab
 sudo RESTORE_MODE=overwrite ./restore-latest-gitlab-backup.sh latest
-
-# If using RDS with an existing database, set overwrite mode:
-# sudo RESTORE_MODE=overwrite ./restore-latest-gitlab-backup.sh latest
 
 # To auto-create required PostgreSQL extensions if missing:
 # sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh latest
@@ -383,7 +353,7 @@ The restore script will:
 10. Start all services
 11. Run final sanity checks
 
-**This will take a significant amount of time depending on backup size (~105GB).**
+**This will take a significant amount of time depending on backup size.**
 
 Monitor progress in another terminal:
 ```bash
@@ -423,11 +393,11 @@ sudo docker logs -f gitlab
 
 **Add test entry to `/etc/hosts` on your local machine:**
 ```
-10.51.30.170    gitlab.761link.net
+<TEMP_INSTANCE_IP>    gitlab-internal.761link.net
 ```
 
 Access GitLab in browser:
-- [ ] GitLab UI loads correctly at `https://gitlab.761link.net`
+- [ ] GitLab UI loads correctly at `https://gitlab-internal.761link.net`
 - [ ] Can log in with existing credentials
 - [ ] LDAP authentication works
 - [ ] Can view existing projects
@@ -439,7 +409,7 @@ Access GitLab in browser:
 
 ```bash
 # Test git clone
-git clone https://gitlab.761link.net/test-group/test-repo.git
+git clone https://gitlab-internal.761link.net/test-group/test-repo.git
 
 # Check for any errors in logs
 sudo docker logs gitlab 2>&1 | grep -i error | tail -20
@@ -493,14 +463,14 @@ sudo docker compose down
 
 ### 4.2 Put Old Server in Maintenance Mode
 
-On Ubuntu 20.04 server:
+On RHEL 8 server:
 
 ```bash
 # Enable maintenance mode
 sudo gitlab-ctl deploy-page up
 
 # Verify maintenance page is showing
-curl -I https://gitlab.761link.net
+curl -I https://gitlab-internal.761link.net
 
 # Stop all GitLab services to prevent new data
 sudo gitlab-ctl stop
@@ -521,11 +491,11 @@ ls -lh /var/opt/gitlab/backups/
 # Note final backup filename: _____________________
 
 # Verify upload to S3 (should happen automatically via gitlab.rb config)
-aws s3 ls s3://ent-gitlab-uploads/ | grep final-migration
+aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ | grep final-migration
 ```
 
 ### 4.4 Verify RDS Database State
-#### We can skip this, but good test to confirm we are on RDS and not bundled DB. 
+#### We can skip this, but good test to confirm we are on RDS and not bundled DB.
 ```bash
 # Connect to RDS and verify last update times
 sudo gitlab-rails dbconsole
@@ -538,7 +508,7 @@ ORDER BY last_analyze DESC LIMIT 10;
 \q
 ```
 
-### 4.5 Make sure we still have gitlab.rb and secrets backed up. 
+### 4.5 Make sure we still have gitlab.rb and secrets backed up.
 
 ---
 
@@ -547,7 +517,7 @@ ORDER BY last_analyze DESC LIMIT 10;
 ### 5.1 Start New Server (Startup Mode)
 
 ```bash
-# On Ubuntu 22.04 server
+# On the test Ubuntu 22.04 instance
 cd /etc/gitlab
 
 # Ensure gitlab-secrets.json is in place
@@ -565,7 +535,7 @@ sudo docker compose -f docker-compose-startup.yml logs -f
 
 ```bash
 # Download final backup from S3
-aws s3 cp s3://ent-gitlab-uploads/final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
+aws s3 cp s3://INTERNAL_BACKUP_BUCKET/final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
 
 # Restore using the restore script
 cd /etc/gitlab
@@ -590,7 +560,7 @@ sudo docker logs -f gitlab
 ### 5.4 Verification Checks
 
 ```bash
-# Full system check (run on 10.51.30.170 while still testing)
+# Full system check (run on test instance while still testing)
 sudo docker exec -it gitlab gitlab-rake gitlab:check
 
 # Check all services
@@ -611,17 +581,17 @@ sudo docker exec -it gitlab gitlab-rails runner "puts 'Projects: ' + Project.cou
 
 ### 5.5 Create AMIs and IP Cutover
 
-**CRITICAL: This is the point of no return. No Elastic IPs are available — the IP cutover is performed by terminating the old instance and relaunching the new AMI with the freed private IP (`10.51.30.165`).**
+**CRITICAL: This is the point of no return. No Elastic IPs are available — the IP cutover is performed by terminating the old instance and relaunching the new AMI with the freed private IP (`10.51.24.10`).**
 
-#### Step 1: Create AMI of Old Server (10.51.30.165) — Safety Backup
+#### Step 1: Create AMI of Old Server (10.51.24.10) — Safety Backup
 
 Before touching the old server, snapshot it so you can recover it if needed.
-You can also do this through the UI. Just please document the AMI name. 
+You can also do this through the UI. Just please document the AMI name.
 
 ```bash
-# Get the instance ID of the OLD server (10.51.30.165) — run from any host with AWS CLI access
+# Get the instance ID of the OLD server (10.51.24.10) — run from any host with AWS CLI access
 OLD_INSTANCE_ID=$(aws ec2 describe-instances \
-  --filters "Name=private-ip-address,Values=10.51.30.165" \
+  --filters "Name=private-ip-address,Values=10.51.24.10" \
   --query "Reservations[0].Instances[0].InstanceId" \
   --output text)
 echo "Old instance ID: $OLD_INSTANCE_ID"
@@ -629,8 +599,8 @@ echo "Old instance ID: $OLD_INSTANCE_ID"
 # Create AMI of old server (no-reboot to avoid downtime on the source)
 aws ec2 create-image \
   --instance-id "$OLD_INSTANCE_ID" \
-  --name "gitlab-20-04-pre-cutover-$(date +%Y%m%d)" \
-  --description "GitLab Ubuntu 20.04 old server backup before IP cutover" \
+  --name "gitlab-internal-rhel8-pre-cutover-$(date +%Y%m%d)" \
+  --description "GitLab Internal RHEL 8 old server backup before IP cutover" \
   --no-reboot
 
 # Note the AMI ID returned — do NOT proceed until this AMI is in "available" state
@@ -641,41 +611,25 @@ aws ec2 wait image-available --image-ids ami-XXXXXXXXXXXXXXXXX
 echo "Old server AMI ready"
 ```
 
-#### Step 2: Create AMI of New Server (10.51.30.170) — Deploy Image
-You can also do this through the UI. Just please document the AMI name. 
+#### Step 2: Use Existing AMI from 10.51.30.170
+
+> **No new AMI creation needed.** We are reusing the AMI already created from the enterprise Docker host at 10.51.30.170. Confirm the AMI ID and that it is in `available` state.
 
 ```bash
-# Get the instance ID of the NEW server (10.51.30.170)
-NEW_INSTANCE_ID=$(aws ec2 describe-instances \
-  --filters "Name=private-ip-address,Values=10.51.30.170" \
-  --query "Reservations[0].Instances[0].InstanceId" \
-  --output text)
-echo "New instance ID: $NEW_INSTANCE_ID"
-
-# Stop containers cleanly before AMI creation to ensure filesystem consistency
-ssh robert.smith@10.51.30.170 "cd /etc/gitlab && sudo docker compose down"
-
-# Create AMI of new server
-aws ec2 create-image \
-  --instance-id "$NEW_INSTANCE_ID" \
-  --name "gitlab-22-04-deploy-$(date +%Y%m%d)" \
-  --description "GitLab Ubuntu 22.04 image to deploy on 10.51.30.165"
-
-# Note the AMI ID — do NOT proceed until this AMI is in "available" state
-# New server AMI ID: _____________________
-
-# Poll until available
-aws ec2 wait image-available --image-ids ami-XXXXXXXXXXXXXXXXX
-echo "New server AMI ready — safe to proceed with cutover"
+# AMI ID (from 10.51.30.170): _____________________
+# Verify it is available
+aws ec2 describe-images --image-ids ami-XXXXXXXXXXXXXXXXX --query "Images[0].State" --output text
+# Should return: available
 ```
 
-#### Step 3: IP Cutover — Terminate Old Instance and Relaunch from New AMI
+#### Step 3: IP Cutover — Terminate Old Instance and Relaunch from AMI
 
-> **Important:** Private IPs in AWS are tied to an ENI. To assign `10.51.30.165` to a new instance, the original instance holding that IP must be **terminated** (not just stopped). Confirm the old-server AMI (Step 1) is `available` before proceeding.
+> **Important:** Private IPs in AWS are tied to an ENI. To assign `10.51.24.10` to a new instance, the original instance holding that IP must be **terminated** (not just stopped). Confirm the old-server AMI (Step 1) is `available` before proceeding.
 
 ```bash
-# 1. Put old GitLab in maintenance mode (if not already stopped from section 4.2) Its better to just have it stopped the whole time. 
-ssh robert.smith@10.51.30.165 "sudo gitlab-ctl deploy-page up && sudo gitlab-ctl stop"
+# 1. Put old GitLab in maintenance mode (if not already stopped from section 4.2)
+# Its better to just have it stopped the whole time.
+ssh robert.smith@10.51.24.10 "sudo gitlab-ctl deploy-page up && sudo gitlab-ctl stop"
 
 # 2. Gather subnet and security group from the old instance before termination
 #    (collect these BEFORE step 3 below — left here for reference)
@@ -684,52 +638,95 @@ ssh robert.smith@10.51.30.165 "sudo gitlab-ctl deploy-page up && sudo gitlab-ctl
 # Key pair name:      _____________________
 # IAM instance profile (if any): _____________________
 
-# 3. Terminate the old instance to release the 10.51.30.165 private IP
-## Go into the UI and delete, we probably have termination protection on. 
+# 3. Terminate the old instance to release the 10.51.24.10 private IP
+## Go into the UI and delete, we probably have termination protection on.
 aws ec2 terminate-instances --instance-ids "$OLD_INSTANCE_ID"
-
 
 # Wait for termination — the private IP is not available until the instance is fully terminated
 aws ec2 wait instance-terminated --instance-ids "$OLD_INSTANCE_ID"
-echo "Old instance terminated — 10.51.30.165 is now free"
+echo "Old instance terminated — 10.51.24.10 is now free"
 
-# 4. Launch new instance from the 10.51.30.170 AMI, assigning 10.51.30.165 as the private IP
+# 4. Launch new instance from the 10.51.30.170 AMI, assigning 10.51.24.10 as the private IP
 aws ec2 run-instances \
   --image-id ami-XXXXXXXXXXXXXXXXX \
   --instance-type <INSTANCE_TYPE> \
   --subnet-id subnet-XXXXXXXXX \
   --security-group-ids sg-XXXXXXXXX \
-  --private-ip-address 10.51.30.165 \
+  --private-ip-address 10.51.24.10 \
   --key-name <KEY_PAIR_NAME> \
   --iam-instance-profile Name=<PROFILE_NAME> \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gitlab-prod}]'
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gitlab-internal-prod}]'
 
 # Note the new instance ID
-# New instance ID (at 10.51.30.165): _____________________
+# New instance ID (at 10.51.24.10): _____________________
 
 # Wait for the instance to be running
 aws ec2 wait instance-running --instance-ids i-XXXXXXXXXXXXXXXXX
-echo "New GitLab instance is running at 10.51.30.165"
+echo "New GitLab instance is running at 10.51.24.10"
 ```
 
-**Final server IP:** `10.51.30.165` (same as the old server — no DNS change needed)
+**Final server IP:** `10.51.24.10` (same as the old server — no DNS change needed)
 
-### 5.6 Post-Cutover Verification
+### 5.6 Post-Cutover Configuration
+
+After launching the AMI at 10.51.24.10, the instance will have the enterprise configuration from 10.51.30.170. You must reconfigure it for the internal instance:
 
 ```bash
-# SSH into the new instance at 10.51.30.165 and start GitLab
-ssh robert.smith@10.51.30.165 "cd /etc/gitlab && sudo ./start-gitlab.sh"
+# SSH into the new instance at 10.51.24.10
+ssh robert.smith@10.51.24.10
 
-# Monitor startup
-ssh robert.smith@10.51.30.165 "sudo docker logs -f gitlab"
+# Copy the internal gitlab.rb, gitlab-secrets.json, and SSL certs
+# (from the secure backup location or from the test instance)
+sudo cp /path/to/internal/gitlab.rb.backup /etc/gitlab/config/gitlab.rb
+sudo cp /path/to/internal/gitlab-secrets.json.backup /etc/gitlab/config/gitlab-secrets.json
+sudo cp /path/to/internal/ssl-certs/* /etc/gitlab/config/ssl/
 
+# Verify correct permissions
+sudo chmod 600 /etc/gitlab/config/gitlab-secrets.json
+sudo chmod 600 /etc/gitlab/config/ssl/*.key
+sudo chmod 644 /etc/gitlab/config/ssl/*.crt
+
+# Update docker-compose.yml and docker-compose-startup.yml hostnames
+# Ensure hostname is 'gitlab-internal.761link.net' in both files
+
+# Run configure script
+cd /etc/gitlab
+sudo ./configure-gitlab-server.sh
+```
+
+### 5.7 Restore Final Backup on Production IP
+
+```bash
+cd /etc/gitlab
+export GITLAB_HOME="/etc/gitlab"
+
+# Start in startup mode
+sudo -E docker compose -f docker-compose-startup.yml up -d
+sudo docker compose -f docker-compose-startup.yml logs -f
+# Wait for "gitlab Reconfigured!"
+
+# Download final backup
+aws s3 cp s3://INTERNAL_BACKUP_BUCKET/final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
+
+# Restore
+sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh final-migration_gitlab_backup.tar
+
+# Switch to production compose
+sudo docker compose -f docker-compose-startup.yml down
+sudo ./start-gitlab.sh
+sudo docker logs -f gitlab
+```
+
+### 5.8 Post-Cutover Verification
+
+```bash
 # From external machine, test connectivity (no DNS change needed — IP is the same as old server)
-curl -I https://gitlab.761link.net
+curl -I https://gitlab-internal.761link.net
 
 # Should return 200 OK
 
 # Test git operations
-git clone https://gitlab.761link.net/test-group/test-repo.git
+git clone https://gitlab-internal.761link.net/test-group/test-repo.git
 cd test-repo
 echo "test" > test.txt
 git add test.txt
@@ -752,8 +749,8 @@ git push origin main
 - [ ] Webhooks firing correctly
 - [ ] Email notifications sending
 
-### 5.7 Re-enable Backups
-**I think cron job create-gitlab-backup.sh script needs updatign to SKIP=uploads,artifacts,lfs,registry,packages**
+### 5.9 Re-enable Backups
+
 The cron job was already installed by `configure-gitlab-server.sh` in section 2.7. Verify it exists and run a manual test:
 
 ```bash
@@ -769,7 +766,7 @@ sudo /usr/local/bin/create-gitlab-backup.sh
 ls -lh /etc/gitlab/data/backups/
 
 # Verify backup uploaded to S3 (if configured in gitlab.rb)
-aws s3 ls s3://ent-gitlab-uploads/ --recursive | tail -n 5
+aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ --recursive | tail -n 5
 ```
 
 ---
@@ -781,7 +778,7 @@ aws s3 ls s3://ent-gitlab-uploads/ --recursive | tail -n 5
 #### Rollback Option 1: Revert to Old Server (Before IP Cutover)
 
 ```bash
-# On Ubuntu 20.04 server
+# On RHEL 8 server
 sudo gitlab-ctl start
 
 # Disable maintenance mode
@@ -791,41 +788,41 @@ sudo gitlab-ctl deploy-page down
 sudo gitlab-ctl status
 
 # Test access
-curl -I https://gitlab.761link.net
+curl -I https://gitlab-internal.761link.net
 ```
 
 #### Rollback Option 2: Restore Old Server from AMI (After IP Cutover)
 
-If critical issues are found after cutover and the new instance at `10.51.30.165` cannot be recovered:
+If critical issues are found after cutover and the new instance at `10.51.24.10` cannot be recovered:
 
 ```bash
-# 1. Stop GitLab on the current (failed) instance at 10.51.30.165
-ssh robert.smith@10.51.30.165 "cd /etc/gitlab && sudo docker compose down" || true
+# 1. Stop GitLab on the current (failed) instance at 10.51.24.10
+ssh robert.smith@10.51.24.10 "cd /etc/gitlab && sudo docker compose down" || true
 
-# 2. Terminate the current instance to free 10.51.30.165
+# 2. Terminate the current instance to free 10.51.24.10
 CURRENT_INSTANCE_ID=$(aws ec2 describe-instances \
-  --filters "Name=private-ip-address,Values=10.51.30.165" \
+  --filters "Name=private-ip-address,Values=10.51.24.10" \
   --query "Reservations[0].Instances[0].InstanceId" \
   --output text)
 aws ec2 terminate-instances --instance-ids "$CURRENT_INSTANCE_ID"
 aws ec2 wait instance-terminated --instance-ids "$CURRENT_INSTANCE_ID"
 
-# 3. Relaunch from the OLD server AMI (gitlab-20-04-pre-cutover-* created in step 5.5)
-#    This restores the Ubuntu 20.04 Omnibus instance at 10.51.30.165
+# 3. Relaunch from the OLD server AMI (gitlab-internal-rhel8-pre-cutover-* created in step 5.5)
+#    This restores the RHEL 8 Omnibus instance at 10.51.24.10
 aws ec2 run-instances \
   --image-id ami-XXXXXXXXXXXXXXXXX \
   --instance-type <INSTANCE_TYPE> \
   --subnet-id subnet-XXXXXXXXX \
   --security-group-ids sg-XXXXXXXXX \
-  --private-ip-address 10.51.30.165 \
+  --private-ip-address 10.51.24.10 \
   --key-name <KEY_PAIR_NAME> \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gitlab-rollback}]'
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=gitlab-internal-rollback}]'
 
 # 4. Once running, re-enable GitLab on the restored instance
-ssh robert.smith@10.51.30.165 "sudo gitlab-ctl start && sudo gitlab-ctl deploy-page down"
+ssh robert.smith@10.51.24.10 "sudo gitlab-ctl start && sudo gitlab-ctl deploy-page down"
 
 # 5. Verify access
-curl -I https://gitlab.761link.net
+curl -I https://gitlab-internal.761link.net
 ```
 
 #### Rollback Option 3: Restore Previous Backup on New Server
@@ -834,7 +831,7 @@ curl -I https://gitlab.761link.net
 cd /etc/gitlab
 
 # Download the previous backup from S3
-aws s3 cp s3://ent-gitlab-uploads/PREVIOUS_BACKUP_FILE.tar /etc/gitlab/data/backups/
+aws s3 cp s3://INTERNAL_BACKUP_BUCKET/PREVIOUS_BACKUP_FILE.tar /etc/gitlab/data/backups/
 
 # Switch to startup compose
 sudo docker compose down
@@ -861,18 +858,26 @@ If runners need to re-register or update URL:
 # On each runner server, update gitlab-runner config
 sudo vi /etc/gitlab-runner/config.toml
 
-# Verify url = "https://gitlab.761link.net"
+# Verify url = "https://gitlab-internal.761link.net"
 # Restart runner
 sudo gitlab-runner restart
-sudo gitlab-runner verify 
+sudo gitlab-runner verify
 ```
 
 ### 7.2 Update Documentation
 
-- [ ] Conops? 
-- [ ] Enter docs that need to be updated. 
+- [ ] Conops?
+- [ ] Enter docs that need to be updated.
 
-### 7.3 Monitor
+### 7.3 Update RDS Security Group
+
+```bash
+# Ensure the RDS security group allows inbound from 10.51.24.10
+# Remove any old RHEL 8 instance IPs if they differ from 10.51.24.10
+# Since we kept the same IP, no change should be needed — verify anyway
+```
+
+### 7.4 Monitor
 
 ```bash
 # Check logs daily
@@ -959,7 +964,7 @@ DRY_RUN=true sudo /etc/gitlab/restore-latest-gitlab-backup.sh latest
 sudo RESTORE_MODE=overwrite /etc/gitlab/restore-latest-gitlab-backup.sh latest
 
 # Restore specific backup
-sudo RESTORE_MODE=overwrite /etc/gitlab/restore-latest-gitlab-backup.sh 1770256882_2026_02_04_18.8.2-ee_gitlab_backup.tar
+sudo RESTORE_MODE=overwrite /etc/gitlab/restore-latest-gitlab-backup.sh BACKUP_FILENAME.tar
 ```
 
 ### Database Commands
@@ -1013,14 +1018,13 @@ apt update && apt install -y postgresql-client
 psql -h RDS_ENDPOINT -U DB_USER -d DB_NAME
 
 # Check security groups in AWS
-# Ensure the new instance IP (10.51.30.165) is allowed in the RDS security group
-# Note: After cutover the instance runs at 10.51.30.165 — remove the old 10.51.30.170 rule if present
+# Ensure 10.51.24.10 is allowed in the RDS security group
 ```
 
 ### Issue: S3 objects not accessible
 ```bash
 # Test S3 access from the host
-aws s3 ls s3://ent-gitlab-uploads/
+aws s3 ls s3://INTERNAL_BACKUP_BUCKET/
 
 # Check from inside the container
 sudo docker exec -it gitlab gitlab-rails console

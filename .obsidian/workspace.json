@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "01-Daily/2026/February/2026-02-11.md",
+                "file": "02-Work/Projects/GitLab Internal Load Docker Images.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-02-11"
+              "title": "GitLab Internal Load Docker Images"
             }
           }
         ]
@@ -114,7 +114,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "01-Daily/2026/February/2026-02-11.md",
+                "file": "02-Work/Projects/GitLab Internal Load Docker Images.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -124,7 +124,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for 2026-02-11"
+              "title": "Backlinks for GitLab Internal Load Docker Images"
             }
           },
           {
@@ -205,9 +205,17 @@
   },
   "active": "7482bb88b84c6c64",
   "lastOpenFiles": [
+    "02-Work/Projects/attachments/Pasted image 20260213091505.png",
+    "02-Work/Projects/attachments/Pasted image 20260213091403.png",
+    "02-Work/Projects/attachments",
+    "02-Work/Projects/GitLab Internal Migration SOP.md",
+    "02-Work/Projects/GitLab Internal Load Docker Images.md",
+    "02-Work/Projects/GitLab Enterprise Migration SOP.md",
+    "01-Daily/2026/February/2026-02-13.md",
+    "01-Daily/2026/February/2026-02-12.md",
+    "00-Templates/SOP_Template.md",
     "02-Work/Projects/Claude Code with Bedrock.md",
     "01-Daily/2026/February/2026-02-11.md",
-    "02-Work/Projects/GitLab Enterprise Migration SOP.md",
     "02-Work/Hoplite Cert.md",
     "01-Daily/2026/February/2026-02-10.md",
     "99-Meta/Vault Guide.md",
@@ -223,23 +231,16 @@
     "00-Templates/Learning Note.md",
     "01-Daily/2026/February/2026-02-09.md",
     "Meeting Notes 2.md",
-    "00-Templates/SOP_Template.md",
     "SOP_Template.md",
     "SOP_Template.md.tmp.2688.1770733455411",
     "01-Daily/2026/February",
     "99-Meta/Templater Setup Guide.md",
-    "01-Daily/2026/Untitled.md",
-    "00-Templates/Meeting Note.md",
-    "00-Templates/Weekly Note.md",
-    "00-Templates/Monthly Status Report.md",
     "START HERE.md.tmp.2688.1770668401648",
     "README.md.tmp.2688.1770668349235",
     "99-Meta/Tags Index.md.tmp.2688.1770668312425",
-    "2026-02-09.md",
     "00-Templates/Learning Note.md.tmp.2688.1770668196632",
     "00-Templates/Meeting Note.md.tmp.2688.1770668183010",
     "00-Templates/Project Note.md.tmp.2688.1770668174959",
-    "00-Templates/Monthly Status Report.md.tmp.2688.1770668163249",
-    "00-Templates/Weekly Note.md.tmp.2688.1770668151882"
+    "00-Templates/Monthly Status Report.md.tmp.2688.1770668163249"
   ]
 }
