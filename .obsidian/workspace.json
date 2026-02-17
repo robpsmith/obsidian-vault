@@ -24,21 +24,21 @@
         ]
       },
       {
-        "id": "aa0967af155401c0",
+        "id": "0a09aa8a5b0d5f27",
         "type": "tabs",
         "children": [
           {
-            "id": "247b7afb51eb8a84",
+            "id": "7df975b459034c1a",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "02-Work/Projects/Claude Code with Bedrock.md",
+                "file": "01-Daily/2026/February/2026-02-13.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Claude Code with Bedrock"
+              "title": "2026-02-13"
             }
           }
         ]
@@ -205,13 +205,13 @@
   },
   "active": "7482bb88b84c6c64",
   "lastOpenFiles": [
+    "01-Daily/2026/February/2026-02-13.md",
+    "02-Work/Projects/GitLab Internal Load Docker Images.md",
     "02-Work/Projects/attachments/Pasted image 20260213091505.png",
     "02-Work/Projects/attachments/Pasted image 20260213091403.png",
     "02-Work/Projects/attachments",
     "02-Work/Projects/GitLab Internal Migration SOP.md",
-    "02-Work/Projects/GitLab Internal Load Docker Images.md",
     "02-Work/Projects/GitLab Enterprise Migration SOP.md",
-    "01-Daily/2026/February/2026-02-13.md",
     "01-Daily/2026/February/2026-02-12.md",
     "00-Templates/SOP_Template.md",
     "02-Work/Projects/Claude Code with Bedrock.md",
