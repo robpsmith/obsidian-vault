@@ -75,11 +75,16 @@ aws s3 ls s3://ent-gitlab-uploads/ --recursive | sort | tail -n 10
 
 # Note the latest backup timestamp: ex 1770256882_2026_02_04_18.8.2-ee_gitlab_backup.tar
 
-# Create a pre-migration backup (incremental — skips object-store blobs since those stay in S3)
-sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=manual-pre-migration
+# Create a FULL pre-migration backup — DB and git repos (skips S3 blobs since both servers share
+# the same S3 buckets). This is the preload baseline for the new server and is taken well before
+# the maintenance window so the time-consuming restore happens off-hours.
+sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=full-pre-migration
 
 # Verify upload to S3
 aws s3 ls s3://ent-gitlab-uploads/ --recursive | sort | tail -n 10
+
+# Record the full backup filename for use in Phase 2:
+# Full backup file: _____________________
 ```
 
 ### 1.4 Document Current Settings
@@ -315,7 +320,7 @@ This script will:
 
 ---
 
-## Phase 2: Testing Phase
+## Phase 2: Preload & Testing Phase
 
 ### 3.1 Start GitLab Container (Startup Mode)
 
@@ -350,24 +355,23 @@ sudo docker exec -it gitlab gitlab-rake gitlab:check
 sudo docker exec -it gitlab gitlab-rake gitlab:db:configure
 ```
 
-### 3.3 Restore Backup for Testing
+### 3.3 Preload Full Backup & Test
+
+> **Preload step:** This restores the FULL pre-migration backup from section 1.3 onto the new server.
+> This is the most time-consuming restore and is intentionally done **before** the maintenance window.
+> After validating functionality, the data stays loaded. During the maintenance window, only the small
+> incremental backup will be applied to bring the DB and repos to final cutover state.
 
 ```bash
-# Download latest backup from S3 to the backups directory
-aws s3 cp s3://ent-gitlab-uploads/LATEST_BACKUP_FILE.tar /etc/gitlab/data/backups/
+# Download the FULL pre-migration backup from S3 (filename recorded in section 1.3)
+aws s3 cp s3://ent-gitlab-uploads/full-pre-migration_gitlab_backup.tar /etc/gitlab/data/backups/
 
 # Verify the file is in place
 ls -lh /etc/gitlab/data/backups/
 
-# Run a dry-run first to validate everything without modifying data
+# Restore the full backup — preloads the DB and git repos on the new server
 cd /etc/gitlab
-sudo RESTORE_MODE=overwrite ./restore-latest-gitlab-backup.sh latest
-
-# If using RDS with an existing database, set overwrite mode:
-# sudo RESTORE_MODE=overwrite ./restore-latest-gitlab-backup.sh latest
-
-# To auto-create required PostgreSQL extensions if missing:
-# sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh latest
+sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh full-pre-migration_gitlab_backup.tar
 ```
 
 The restore script will:
@@ -477,7 +481,10 @@ Once testing is complete and satisfactory:
 cd /etc/gitlab
 sudo docker compose down
 
-# Keep backups and data intact for final migration
+# IMPORTANT: Keep the GitLab data directory intact — do NOT wipe /etc/gitlab/data.
+# The full backup has been preloaded (DB and git repos). During the maintenance window,
+# the incremental backup will be applied on top of this preloaded state, dramatically
+# reducing the time the old server needs to be offline.
 ```
 
 ---
@@ -509,19 +516,22 @@ sudo gitlab-ctl stop
 sudo gitlab-ctl status
 ```
 
-### 4.3 Create Final Backup
+### 4.3 Create Incremental Final Backup
 
 ```bash
-# On old server — create final migration backup (ONLY SKIP S3 buckets)
-sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=final-migration
+# On old server — create INCREMENTAL final migration backup.
+# Skips S3 object-store blobs (both servers share the same S3 buckets — no blob migration needed).
+# The new server already has the full backup preloaded from Phase 2.
+# This incremental captures the DB and git repo state at the exact moment the old server stopped.
+sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=incremental-final-migration
 
 # Wait for completion, then verify
 ls -lh /var/opt/gitlab/backups/
 
-# Note final backup filename: _____________________
+# Note incremental backup filename: _____________________
 
 # Verify upload to S3 (should happen automatically via gitlab.rb config)
-aws s3 ls s3://ent-gitlab-uploads/ | grep final-migration
+aws s3 ls s3://ent-gitlab-uploads/ | grep incremental-final-migration
 ```
 
 ### 4.4 Verify RDS Database State
@@ -561,15 +571,19 @@ sudo -E docker compose -f docker-compose-startup.yml up -d
 sudo docker compose -f docker-compose-startup.yml logs -f
 ```
 
-### 5.2 Restore Final Backup
+### 5.2 Restore Incremental Final Backup
+
+> The new server (10.51.30.170) already has the full backup preloaded from Phase 2.
+> This step applies only the incremental backup — DB and git repos captured when the old server stopped.
+> This restore is significantly faster than the full restore since it contains no S3 object blobs.
 
 ```bash
-# Download final backup from S3
-aws s3 cp s3://ent-gitlab-uploads/final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
+# Download the INCREMENTAL final backup from S3 (filename recorded in section 4.3)
+aws s3 cp s3://ent-gitlab-uploads/incremental-final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
 
-# Restore using the restore script
+# Restore the incremental backup — updates DB and git repos to final cutover state
 cd /etc/gitlab
-sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh final-migration_gitlab_backup.tar
+sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh incremental-final-migration_gitlab_backup.tar
 ```
 
 ### 5.3 Switch to Production Compose

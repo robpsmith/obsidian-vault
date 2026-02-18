@@ -74,11 +74,16 @@ aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ --recursive | sort | tail -n 10
 
 # Note the latest backup timestamp: _____________________
 
-# Create a pre-migration backup (incremental — skips object-store blobs since those stay in S3)
-sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=manual-pre-migration
+# Create a FULL pre-migration backup — DB and git repos (skips S3 blobs since both servers share
+# the same S3 buckets). This is the preload baseline for the new server and is taken well before
+# the maintenance window so the time-consuming restore happens off-hours.
+sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=full-pre-migration
 
 # Verify upload to S3
 aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ --recursive | sort | tail -n 10
+
+# Record the full backup filename for use in Phase 2:
+# Full backup file: _____________________
 ```
 
 ### 1.4 Document Current Settings
@@ -288,7 +293,7 @@ This script will:
 
 ---
 
-## Phase 2: Testing Phase
+## Phase 2: Preload & Testing Phase
 
 ### 3.1 Start GitLab Container (Startup Mode)
 
@@ -323,21 +328,24 @@ sudo docker exec -it gitlab gitlab-rake gitlab:check
 sudo docker exec -it gitlab gitlab-rake gitlab:db:configure
 ```
 
-### 3.3 Restore Backup for Testing
+### 3.3 Preload Full Backup & Test
+
+> **Preload step:** This restores the FULL pre-migration backup from section 1.3 onto the test instance.
+> This is the most time-consuming restore and is intentionally done **before** the maintenance window.
+> After validating functionality, the data stays loaded on this instance — it will serve as the
+> pre-production instance. During the maintenance window, only the incremental backup will be applied
+> here, then an AMI will be taken from this instance for the IP cutover.
 
 ```bash
-# Download latest backup from S3 to the backups directory
-aws s3 cp s3://INTERNAL_BACKUP_BUCKET/LATEST_BACKUP_FILE.tar /etc/gitlab/data/backups/
+# Download the FULL pre-migration backup from S3 (filename recorded in section 1.3)
+aws s3 cp s3://INTERNAL_BACKUP_BUCKET/full-pre-migration_gitlab_backup.tar /etc/gitlab/data/backups/
 
 # Verify the file is in place
 ls -lh /etc/gitlab/data/backups/
 
-# Restore — if using RDS with an existing database, set overwrite mode:
+# Restore the full backup — preloads the DB and git repos on the new server
 cd /etc/gitlab
-sudo RESTORE_MODE=overwrite ./restore-latest-gitlab-backup.sh latest
-
-# To auto-create required PostgreSQL extensions if missing:
-# sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh latest
+sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh full-pre-migration_gitlab_backup.tar
 ```
 
 The restore script will:
@@ -447,7 +455,10 @@ Once testing is complete and satisfactory:
 cd /etc/gitlab
 sudo docker compose down
 
-# Keep backups and data intact for final migration
+# IMPORTANT: Do NOT terminate this instance and do NOT wipe /etc/gitlab/data.
+# This instance is now the pre-production instance with the full backup preloaded.
+# During the maintenance window, the incremental backup will be applied here,
+# then an AMI will be created from this instance for the 10.51.24.10 IP cutover.
 ```
 
 ---
@@ -479,19 +490,22 @@ sudo gitlab-ctl stop
 sudo gitlab-ctl status
 ```
 
-### 4.3 Create Final Backup
+### 4.3 Create Incremental Final Backup
 
 ```bash
-# On old server — create final migration backup (ONLY SKIP S3 buckets)
-sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=final-migration
+# On old server — create INCREMENTAL final migration backup.
+# Skips S3 object-store blobs (both servers share the same S3 buckets — no blob migration needed).
+# The preloaded instance already has the full backup from Phase 2.
+# This incremental captures the DB and git repo state at the exact moment the old server stopped.
+sudo gitlab-backup create SKIP=uploads,artifacts,lfs,registry,packages BACKUP=incremental-final-migration
 
 # Wait for completion, then verify
 ls -lh /var/opt/gitlab/backups/
 
-# Note final backup filename: _____________________
+# Note incremental backup filename: _____________________
 
 # Verify upload to S3 (should happen automatically via gitlab.rb config)
-aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ | grep final-migration
+aws s3 ls s3://INTERNAL_BACKUP_BUCKET/ | grep incremental-final-migration
 ```
 
 ### 4.4 Verify RDS Database State
@@ -514,10 +528,11 @@ ORDER BY last_analyze DESC LIMIT 10;
 
 ## Phase 4: Cutover & Verification
 
-### 5.1 Start New Server (Startup Mode)
+### 5.1 Start Preloaded Instance (Startup Mode)
 
 ```bash
-# On the test Ubuntu 22.04 instance
+# On the preloaded Ubuntu 22.04 instance (the test instance from Phase 2, still at temp IP)
+# This instance already has the full backup loaded — only the incremental needs to be applied.
 cd /etc/gitlab
 
 # Ensure gitlab-secrets.json is in place
@@ -531,15 +546,20 @@ sudo -E docker compose -f docker-compose-startup.yml up -d
 sudo docker compose -f docker-compose-startup.yml logs -f
 ```
 
-### 5.2 Restore Final Backup
+### 5.2 Restore Incremental Final Backup
+
+> The preloaded instance already has the full backup from Phase 2.
+> This step applies only the incremental backup — DB and git repos captured when the old server stopped.
+> This restore is significantly faster than the full restore since it contains no S3 object blobs.
+> After this restore, an AMI will be taken from this instance for the IP cutover (section 5.5 Step 2).
 
 ```bash
-# Download final backup from S3
-aws s3 cp s3://INTERNAL_BACKUP_BUCKET/final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
+# Download the INCREMENTAL final backup from S3 (filename recorded in section 4.3)
+aws s3 cp s3://INTERNAL_BACKUP_BUCKET/incremental-final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
 
-# Restore using the restore script
+# Restore the incremental backup — updates DB and git repos to final cutover state
 cd /etc/gitlab
-sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh final-migration_gitlab_backup.tar
+sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh incremental-final-migration_gitlab_backup.tar
 ```
 
 ### 5.3 Switch to Production Compose
@@ -611,15 +631,36 @@ aws ec2 wait image-available --image-ids ami-XXXXXXXXXXXXXXXXX
 echo "Old server AMI ready"
 ```
 
-#### Step 2: Use Existing AMI from 10.51.30.170
+#### Step 2: Create AMI from the Preloaded Instance — Deploy Image
 
-> **No new AMI creation needed.** We are reusing the AMI already created from the enterprise Docker host at 10.51.30.170. Confirm the AMI ID and that it is in `available` state.
+> Create an AMI from the preloaded test instance (at temp IP) **after** the incremental restore in section 5.2.
+> This AMI contains the final DB state, git repos, and internal configuration from Phase 2.
+> No further restore is needed after launching at 10.51.24.10.
+> Do **not** use the 10.51.30.170 enterprise AMI — it does not have the preloaded data or internal config.
 
 ```bash
-# AMI ID (from 10.51.30.170): _____________________
-# Verify it is available
-aws ec2 describe-images --image-ids ami-XXXXXXXXXXXXXXXXX --query "Images[0].State" --output text
-# Should return: available
+# Get the instance ID of the preloaded test instance (temp IP noted in section 2.1)
+PREPROD_INSTANCE_ID=$(aws ec2 describe-instances \
+  --filters "Name=private-ip-address,Values=<TEMP_INSTANCE_IP>" \
+  --query "Reservations[0].Instances[0].InstanceId" \
+  --output text)
+echo "Preloaded instance ID: $PREPROD_INSTANCE_ID"
+
+# Stop containers cleanly before AMI creation to ensure filesystem consistency
+ssh robert.smith@<TEMP_INSTANCE_IP> "cd /etc/gitlab && sudo docker compose down"
+
+# Create AMI from the preloaded instance (incremental restore already applied in section 5.2)
+aws ec2 create-image \
+  --instance-id "$PREPROD_INSTANCE_ID" \
+  --name "gitlab-internal-22-04-deploy-$(date +%Y%m%d)" \
+  --description "GitLab Internal Ubuntu 22.04 preloaded image for deployment at 10.51.24.10"
+
+# Note the AMI ID — do NOT proceed until this AMI is in "available" state
+# Preloaded instance AMI ID: _____________________
+
+# Poll until available (may take 10-20 minutes)
+aws ec2 wait image-available --image-ids ami-XXXXXXXXXXXXXXXXX
+echo "Preloaded instance AMI ready — safe to proceed with cutover"
 ```
 
 #### Step 3: IP Cutover — Terminate Old Instance and Relaunch from AMI
@@ -646,7 +687,7 @@ aws ec2 terminate-instances --instance-ids "$OLD_INSTANCE_ID"
 aws ec2 wait instance-terminated --instance-ids "$OLD_INSTANCE_ID"
 echo "Old instance terminated — 10.51.24.10 is now free"
 
-# 4. Launch new instance from the 10.51.30.170 AMI, assigning 10.51.24.10 as the private IP
+# 4. Launch new instance from the preloaded instance AMI, assigning 10.51.24.10 as the private IP
 aws ec2 run-instances \
   --image-id ami-XXXXXXXXXXXXXXXXX \
   --instance-type <INSTANCE_TYPE> \
@@ -667,55 +708,34 @@ echo "New GitLab instance is running at 10.51.24.10"
 
 **Final server IP:** `10.51.24.10` (same as the old server — no DNS change needed)
 
-### 5.6 Post-Cutover Configuration
+### 5.6 Start GitLab at Production IP
 
-After launching the AMI at 10.51.24.10, the instance will have the enterprise configuration from 10.51.30.170. You must reconfigure it for the internal instance:
+The instance at 10.51.24.10 was launched from the preloaded AMI created in Step 2. It already has the
+correct internal `gitlab.rb`, `gitlab-secrets.json`, SSL certs, and final data state from Phase 2 + the
+incremental restore. No configuration copying or restore is needed — just start GitLab.
 
 ```bash
 # SSH into the new instance at 10.51.24.10
 ssh robert.smith@10.51.24.10
 
-# Copy the internal gitlab.rb, gitlab-secrets.json, and SSL certs
-# (from the secure backup location or from the test instance)
-sudo cp /path/to/internal/gitlab.rb.backup /etc/gitlab/config/gitlab.rb
-sudo cp /path/to/internal/gitlab-secrets.json.backup /etc/gitlab/config/gitlab-secrets.json
-sudo cp /path/to/internal/ssl-certs/* /etc/gitlab/config/ssl/
+# Verify config files are present (carried over from the preloaded AMI)
+ls -l /etc/gitlab/config/gitlab.rb
+ls -l /etc/gitlab/config/gitlab-secrets.json
+ls -l /etc/gitlab/config/ssl/
 
-# Verify correct permissions
-sudo chmod 600 /etc/gitlab/config/gitlab-secrets.json
-sudo chmod 600 /etc/gitlab/config/ssl/*.key
-sudo chmod 644 /etc/gitlab/config/ssl/*.crt
-
-# Update docker-compose.yml and docker-compose-startup.yml hostnames
-# Ensure hostname is 'gitlab-internal.761link.net' in both files
-
-# Run configure script
+# Start GitLab with the production compose
 cd /etc/gitlab
-sudo ./configure-gitlab-server.sh
-```
-
-### 5.7 Restore Final Backup on Production IP
-
-```bash
-cd /etc/gitlab
-export GITLAB_HOME="/etc/gitlab"
-
-# Start in startup mode
-sudo -E docker compose -f docker-compose-startup.yml up -d
-sudo docker compose -f docker-compose-startup.yml logs -f
-# Wait for "gitlab Reconfigured!"
-
-# Download final backup
-aws s3 cp s3://INTERNAL_BACKUP_BUCKET/final-migration_gitlab_backup.tar /etc/gitlab/data/backups/
-
-# Restore
-sudo RESTORE_MODE=overwrite AUTO_CREATE_EXTENSIONS=true ./restore-latest-gitlab-backup.sh final-migration_gitlab_backup.tar
-
-# Switch to production compose
-sudo docker compose -f docker-compose-startup.yml down
 sudo ./start-gitlab.sh
+
+# Monitor startup
 sudo docker logs -f gitlab
 ```
+
+### 5.7 No Restore Required at Production IP
+
+> The incremental restore was performed on the preloaded instance in section 5.2 **before** the AMI
+> was created. The instance at 10.51.24.10 already contains the final DB state and git repos.
+> Section 5.6 starts GitLab directly — no additional restore step is needed.
 
 ### 5.8 Post-Cutover Verification
 
