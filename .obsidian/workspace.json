@@ -13,15 +13,30 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "02-Work/Projects/GitLab Internal Load Docker Images.md",
+                "file": "02-Work/Projects/GitLab Internal Migration SOP.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "GitLab Internal Load Docker Images"
+              "title": "GitLab Internal Migration SOP"
+            }
+          },
+          {
+            "id": "c10f59242d013493",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "01-Daily/2026/February/2026-02-18.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-02-18"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       },
       {
         "id": "0a09aa8a5b0d5f27",
@@ -114,7 +129,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "02-Work/Projects/GitLab Internal Load Docker Images.md",
+                "file": "01-Daily/2026/February/2026-02-18.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -124,7 +139,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for GitLab Internal Load Docker Images"
+              "title": "Backlinks for 2026-02-18"
             }
           },
           {
@@ -203,14 +218,17 @@
       "bases:Create new base": false
     }
   },
-  "active": "7482bb88b84c6c64",
+  "active": "c10f59242d013493",
   "lastOpenFiles": [
-    "01-Daily/2026/February/2026-02-13.md",
+    "01-Daily/2026/February/2026-02-17.md",
+    "01-Daily/2026/February/2026-02-18.md",
+    "02-Work/Projects/Disable containerd Image Store and Switch to overlay2 on Ubuntu.md",
+    "02-Work/Projects/GitLab Internal Migration SOP.md",
     "02-Work/Projects/GitLab Internal Load Docker Images.md",
+    "01-Daily/2026/February/2026-02-13.md",
     "02-Work/Projects/attachments/Pasted image 20260213091505.png",
     "02-Work/Projects/attachments/Pasted image 20260213091403.png",
     "02-Work/Projects/attachments",
-    "02-Work/Projects/GitLab Internal Migration SOP.md",
     "02-Work/Projects/GitLab Enterprise Migration SOP.md",
     "01-Daily/2026/February/2026-02-12.md",
     "00-Templates/SOP_Template.md",
@@ -221,7 +239,6 @@
     "99-Meta/Vault Guide.md",
     "Welcome.md",
     "Untitled 1.md",
-    "Untitled.md",
     "README.md",
     "START HERE.md",
     "00-Templates/Quick Note.md",
@@ -234,7 +251,6 @@
     "SOP_Template.md",
     "SOP_Template.md.tmp.2688.1770733455411",
     "01-Daily/2026/February",
-    "99-Meta/Templater Setup Guide.md",
     "START HERE.md.tmp.2688.1770668401648",
     "README.md.tmp.2688.1770668349235",
     "99-Meta/Tags Index.md.tmp.2688.1770668312425",
