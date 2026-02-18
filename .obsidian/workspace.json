@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "01-Daily/2026/February/2026-02-18.md",
+                "file": "02-Work/Projects/GitLab Internal Migration SOP.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-02-18"
+              "title": "GitLab Internal Migration SOP"
             }
           }
         ],
@@ -129,7 +129,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "01-Daily/2026/February/2026-02-18.md",
+                "file": "02-Work/Projects/GitLab Internal Migration SOP.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -139,7 +139,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for 2026-02-18"
+              "title": "Backlinks for GitLab Internal Migration SOP"
             }
           },
           {
@@ -220,8 +220,8 @@
   },
   "active": "c10f59242d013493",
   "lastOpenFiles": [
-    "01-Daily/2026/February/2026-02-17.md",
     "01-Daily/2026/February/2026-02-18.md",
+    "01-Daily/2026/February/2026-02-17.md",
     "02-Work/Projects/Disable containerd Image Store and Switch to overlay2 on Ubuntu.md",
     "02-Work/Projects/GitLab Internal Migration SOP.md",
     "02-Work/Projects/GitLab Internal Load Docker Images.md",
